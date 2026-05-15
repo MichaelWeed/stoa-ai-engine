@@ -205,6 +205,26 @@ class WorkflowRunner:
                 cost_usd=snap.cost_usd, fsm_trace=fsm.trace(), error=str(exc),
             )
 
+    def run_inline(
+        self, name: str, task: str, inputs: dict[str, Any] = {}, policy: str | None = None
+    ) -> WorkflowResult:
+        """Run a task definition directly without a YAML file on disk."""
+        import tempfile
+
+        spec = {"name": name, "task": task, "inputs": inputs}
+        if policy:
+            spec["policy"] = policy
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(spec, f)
+            tmp = Path(f.name)
+
+        try:
+            return self.run(tmp)
+        finally:
+            tmp.unlink(missing_ok=True)
+
+
     def _execute_tool(self, tool: str, args: dict, context: dict) -> Any:
         """Dispatch tool calls to the built-in tool registry."""
         if tool == "http_get":

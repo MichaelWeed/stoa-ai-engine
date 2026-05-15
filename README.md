@@ -22,6 +22,15 @@ Stoa solves all five. Here's how it pays for itself.
 
 ---
 
+## ⚡ Quick Start: How to Integrate
+
+Building with Stoa? Check out the **[Integration Guide](INTEGRATION.md)** for:
+- **Case Study**: How to use Stoa for high-compliance portfolios (e.g., [MichaelWeed.xyz](https://michaelweed.xyz)).
+- **Patterns**: API vs. Library vs. CLI integration.
+- **Production Guide**: Deployment strategies and policy enforcement.
+
+---
+
 ## What it costs you today vs. with Stoa
 
 > Numbers below come from the benchmark suite in [`benchmarks/`](benchmarks/). Run `make bench` to reproduce them on your own workflows.
