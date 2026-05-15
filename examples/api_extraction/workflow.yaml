@@ -1,0 +1,21 @@
+# Example 2: API Data Extraction with Schema-Drift Recovery
+#
+# What this demonstrates:
+#   Stoa fetches data from an external API and extracts structured fields.
+#   If the API changes its response format (schema drift), Stoa detects the
+#   failure, rewrites just the extraction logic, and resumes automatically.
+#   The fix is recorded in learnings.md so it never needs to be fixed again.
+#
+# Key problem solved: Brittle agents that crash when an API changes.
+
+name: api_extraction
+task: |
+  Fetch the public JSON data from inputs.api_url.
+  Extract: post ID, title, and body from each item.
+  Return a list of dicts with keys: id, title, body.
+  Limit to the first 5 items.
+
+inputs:
+  api_url: https://jsonplaceholder.typicode.com/posts
+
+policy: policies/default.yaml

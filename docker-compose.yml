@@ -1,0 +1,24 @@
+services:
+  stoa:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./stoa.db:/app/stoa.db
+      - ./learnings.md:/app/learnings.md
+      - /var/run/docker.sock:/var/run/docker.sock  # lets Stoa spin sandbox containers
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - STOA_API_URL=http://stoa:8000
+    depends_on:
+      - stoa
+    restart: unless-stopped

@@ -1,0 +1,26 @@
+# Example 3: Multi-Step Research with Budget Enforcement
+#
+# What this demonstrates:
+#   A multi-step workflow (fetch → extract → summarize) with strict budget
+#   limits. If the workflow tries to run too many steps or spend too many
+#   tokens, the circuit breaker halts it cleanly before costs escalate.
+#
+# Key problems solved:
+#   - Runaway loops burning API budget
+#   - Agents calling tools without authorization
+
+name: multi_step_research
+task: |
+  Research the topic in inputs.topic using the following steps:
+  1. Fetch the URL in inputs.source_url and extract the main text content
+  2. Identify the 5 most important facts from the content
+  3. Write a 3-sentence summary suitable for a non-technical audience
+  Return: { facts: [...], summary: "..." }
+
+inputs:
+  topic: "AI agent reliability in enterprise software"
+  source_url: https://jsonplaceholder.typicode.com/posts/1
+
+# Tighter budget for this workflow — demonstrates circuit breaker behavior
+# if you deliberately set these too low and watch Stoa halt cleanly.
+policy: policies/default.yaml

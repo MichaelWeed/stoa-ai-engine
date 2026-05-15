@@ -1,0 +1,11 @@
+id,name,amount,category
+1,Alpha Corp,1250.00,enterprise
+2,Beta LLC,875.50,smb
+3,Gamma Inc,3400.00,enterprise
+4,Delta Co,120.75,smb
+5,Epsilon Ltd,2200.00,enterprise
+6,Zeta Partners,450.00,smb
+7,Eta Group,5100.00,enterprise
+8,Theta Systems,310.25,smb
+9,Iota Works,1800.00,enterprise
+10,Kappa Tech,675.00,smb

@@ -1,0 +1,22 @@
+# Example 1: CSV Aggregation
+#
+# What this demonstrates:
+#   The AI writes the aggregation code once. After that, the code runs
+#   directly — no AI involved, no tokens spent, exact same result every time.
+#   A spreadsheet with 10 rows or 10 million rows costs the same to process.
+#
+# Key problem solved: AI doing arithmetic (and getting it wrong).
+
+name: csv_aggregation
+task: |
+  Read the CSV file at inputs.csv_path. Compute the following exactly:
+  1. Total of the 'amount' column
+  2. Average of the 'amount' column (round to 2 decimal places)
+  3. Row count
+  4. Top 3 rows by amount (descending)
+  Return a result dict with keys: total, average, row_count, top_3.
+
+inputs:
+  csv_path: examples/csv_aggregation/sample.csv
+
+policy: policies/default.yaml
