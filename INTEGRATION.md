@@ -1,115 +1,181 @@
-# Integration Guide: Bringing Stoa Into Your Stack
+# Incorporating Stoa — A Developer Walkthrough
 
-Stoa (The Crucible) is designed to be the "Deterministic Engine" that sits behind your AI applications. It bridges the gap between unreliable, expensive LLM calls and reliable, zero-cost Python code.
+The fastest way to understand Stoa is to see a before and after.
 
-This guide outlines how to incorporate Stoa into existing projects, using the **MichaelWeed.xyz** portfolio as a prime case study.
+This walkthrough uses a small invoice processing API — a problem every developer
+has touched in some form. The specific domain doesn't matter. The pattern does.
 
----
-
-## 1. Integration Patterns
-
-### A. Stoa as a Sidecar (HTTP API)
-
-Best for: Next.js/React frontends, Node.js backends, or any non-Python environment.
-
-- Run the Stoa API via Docker.
-- Call the `/run` or `/plan` endpoints.
-- **Benefits**: Complete isolation. The "Plan" can be generated once and stored in your database as a static script.
-
-### B. Stoa as a Library (Python Native)
-
-Best for: Django/FastAPI apps, data pipelines, or CLI tools.
-
-- Import the `WorkflowRunner`.
-- Run tasks programmatically within your existing event loop.
-- **Benefits**: Low latency, shared memory for inputs/outputs.
-
-### C. The "Stoa CLI" in CI/CD
-
-Best for: Pre-calculating logic during build time.
-
-- Run `stoa run workflow.yaml` as part of your deployment.
-- Bake the results into your static site or app config.
+> **Default model: `gpt-4o`.** Stoa is model-agnostic — swap to Claude (Anthropic),
+> Gemini (Google), or a local model by changing one environment variable.
+> But we default to GPT-4o because it is the model most teams are already
+> paying too much for, and that is exactly what Stoa is built to fix.
 
 ---
 
-## 2. Case Study: MichaelWeed.xyz (Atlas-G Protocol)
+## The Example
 
-Your site already uses the **Atlas-G Protocol** to expose a machine-readable portfolio. Here is how Stoa would supercharge that for **high-compliance verification**:
+A FastAPI endpoint receives raw invoice text and returns structured JSON:
+vendor name, total amount, and a list of line items.
 
-### The Problem
+```
+POST /process
+{"raw_text": "Acme Corp\nWidget x3 @ $25.00 each\nShipping: $9.99\nTotal: $84.99"}
 
-Currently, when an AI agent interviews your portfolio, the LLM might hallucinate experience or describe a project with slight variations every time.
+→ {"vendor": "Acme Corp", "total_usd": 84.99, "line_items": [...]}
+```
 
-### The Stoa Solution: "Verified Reasoning"
+Two working implementations live in this repo:
 
-Integrate Stoa into your portfolio's MCP (Model Context Protocol) server. When a verification request comes in:
-
-1. **Request**: `Task: "Verify HIPAA compliance experience in projects folder."`
-2. **The Crucible**: Stoa generates a plan:
-   - Step 1: `grep` for "HIPAA" in `data/projects/*.json`.
-   - Step 2: Extract "Project Name" and "Role".
-   - Step 3: Count matches. If `count > 0`, return `verified=True`.
-3. **Execution**: The plan runs in a secure sandbox. No LLM "chatting" occurs.
-4. **Result**: Your site returns a **deterministic, evidence-backed answer** that costs $0 in tokens to repeat for the next 1,000 visitors.
+| Directory | Description |
+|---|---|
+| [`examples/invoice_api/`](invoice_api/) | Standard approach — OpenAI called on every request |
+| [`examples/invoice_api_with_stoa/`](invoice_api_with_stoa/) | Stoa approach — OpenAI called once, code runs forever |
 
 ---
 
-## 3. Implementation Example (Python)
+## What Changes When You Add Stoa
 
-### Setting up a Runner
+Open both `main.py` files side by side. The FastAPI routes, the Pydantic models,
+and the response shape are identical. The only difference is how the extraction runs.
+
+### Before (standard OpenAI usage)
 
 ```python
-from stoa.runner import WorkflowRunner
-
-# Use run_inline for easy integration without YAML files
-runner = WorkflowRunner()
-result = runner.run_inline(
-    name="verify_experience",
-    task="Find all projects related to HIPAA in the projects directory.",
-    inputs={"projects_dir": "./data/projects"}
+# Every request ships tokens to OpenAI.
+# 10,000 invoices/day = 10,000 API calls. The bill scales linearly with your success.
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": prompt}],
+    response_format={"type": "json_object"},
 )
-
-if result.success:
-    print(f"Verified projects: {result.output}")
 ```
 
----
-
-## 4. Stoa vs. Manual Deterministic Coding
-
-You mentioned you are already "extracting determinism." This usually means you identify a pattern (e.g., extracting a date from a string) and write a Python function for it.
-
-**Why use Stoa instead of just writing that Python function?**
-
-1. **Maintenance**: In a manual world, every time a new "extraction" requirement comes up, you write a new function. With Stoa, you just describe the task. Stoa writes the code and caches it.
-2. **Security**: Stoa's sandbox ensures that even if the AI writes the code, it can't delete your files or access your environment variables unless explicitly allowed by a policy.
-3. **Recovery**: If the data format changes and your manual code breaks, you have to fix it. Stoa can **self-heal** using its Reflexion engine to update the code automatically.
-4. **Auditability**: Stoa provides a full FSM (Finite State Machine) trace of exactly what the AI planned and what the code did. Manual functions are usually "black boxes" in your logs.
-
----
-
-## 5. Moving to Production
-
-led" Plan
-One of Stoa's most powerful features is that you can save the generated plan (the code) and never call the AI again for that specific task.
+### After (with Stoa)
 
 ```python
-# Save the plan for future use
-with open(f"plans/{task_id}.py", "w") as f:
-    f.write(result.generated_code)
+# OpenAI is called once to generate the extraction logic.
+# After that, the logic runs as plain Python — no API, no tokens, no bill.
+result = runner.run_inline(
+    name="invoice_extraction",
+    task=EXTRACTION_TASK,
+    inputs={"raw_text": req.raw_text},
+)
 ```
 
----
-
-## 4. Moving to Production
-
-1. **Self-Host**: Deploy the `stoa-api` using the provided `Dockerfile` on Cloud Run or Fly.io.
-2. **Policy Configuration**: Create a `policy.yaml` that strictly limits what tools Stoa can use (e.g., `allow: [read_file]`, `deny: [network]`).
-3. **Idempotency**: Use a Redis-backed cache for Stoa's idempotency layer to ensure instant responses for repeated queries across your user base.
+That's the entire integration. One import, one runner, one call.
 
 ---
 
-## 5. Why do this?
+## What Stoa Does Behind That Call
 
-By incorporating Stoa, you transform your portfolio from a **Chatbot** into a **Verifiable Agentic Infrastructure**. It proves you don't just "talk" to AI—you engineer the systems that make AI reliable.
+**First request** — OpenAI earns its fee exactly once:
+
+```
+1. Stoa receives the task description
+2. It sends a single planning prompt to GPT-4o
+3. GPT-4o returns a Python extraction function
+4. Stoa validates the code (AST safety check — no file writes, no network calls)
+5. It runs the code in a sandbox with your inputs
+6. It caches the plan under an idempotency key
+7. It returns your structured data
+```
+
+**Every subsequent request** — OpenAI is not involved:
+
+```
+1. Stoa checks the cache — hit
+2. It runs the cached Python code directly
+3. Returns in ~2ms, $0.00 in OpenAI tokens
+```
+
+GPT-4o wrote the code. It doesn't need to re-read the invoice to run it.
+
+---
+
+## The Cost Reality
+
+Running the standard version at modest scale against GPT-4o (`gpt-4o` input: $2.50/1M tokens):
+
+| Volume | Without Stoa | With Stoa | Savings |
+|---|---|---|---|
+| 100 invoices/day | ~$0.18 | ~$0.003 (first run only) | 98% |
+| 10,000 invoices/day | ~$18.00 | ~$0.003 | >99% |
+| 1,000,000 invoices/day | ~$1,800.00 | ~$0.003 | >99% |
+
+The Stoa cost is flat. It does not scale with volume. OpenAI's does.
+
+> **Model flexibility**: Replace `gpt-4o` with `claude-3-5-sonnet`, `gemini-1.5-pro`,
+> or any LiteLLM-compatible endpoint by setting `STOA_MODEL` in your environment.
+> The planning cost changes. The zero-cost execution after that does not.
+
+---
+
+## Why This Matters For Your App
+
+Think about wherever your app is calling OpenAI right now. Ask yourself:
+
+- **Is the task structurally the same each time, just with different data?**
+  → That's the Stoa pattern. The logic is constant; only the input changes.
+  → You are paying OpenAI to do the same reasoning on every request.
+
+- **Does the output need to be consistent, not just "probably right"?**
+  → GPT-4o's output varies subtly across identical prompts. Stoa's cached code does not.
+
+- **Are you worried about runaway costs if a queue backs up?**
+  → Stoa's budget enforcer caps steps and tokens per run before execution starts.
+  → A stuck queue doesn't become a $4,000 OpenAI invoice overnight.
+
+Common patterns where the swap is immediate:
+
+| Your app does this with OpenAI today | Stoa eliminates this |
+|---|---|
+| Parses incoming emails for intent | Token spend per email |
+| Extracts entities from support tickets | Cost that scales with ticket volume |
+| Scores documents against a rubric | Subtle variance across identical inputs |
+| Validates a form against business rules | Probabilistic pass/fail on deterministic logic |
+| Summarizes structured reports | Full model invocation for templated output |
+
+---
+
+## Running the Examples
+
+**Without Stoa** — every curl costs tokens:
+```bash
+cd examples/invoice_api
+pip install -r requirements.txt
+OPENAI_API_KEY=sk-... uvicorn main:app --reload
+curl -X POST http://localhost:8000/process \
+  -H "Content-Type: application/json" \
+  -d '{"raw_text": "Acme Corp\nWidget x3 @ $25 each\nTotal: $75"}'
+```
+
+**With Stoa** — first curl costs tokens. Every curl after that does not:
+```bash
+cd examples/invoice_api_with_stoa
+pip install -r requirements.txt
+OPENAI_API_KEY=sk-... uvicorn main:app --reload
+curl -X POST http://localhost:8000/process \
+  -H "Content-Type: application/json" \
+  -d '{"raw_text": "Acme Corp\nWidget x3 @ $25 each\nTotal: $75"}'
+
+# Run it again. Same result. Zero new tokens sent to OpenAI.
+curl -X POST http://localhost:8000/process \
+  -H "Content-Type: application/json" \
+  -d '{"raw_text": "Globex Inc\nConsulting x10hrs @ $150\nTotal: $1500"}'
+```
+
+The response is identical in structure. Your token counter didn't move on the second call.
+
+---
+
+## Next Steps
+
+Once you see the pattern, the natural next question is: what else can I stop paying OpenAI per-call for?
+
+Stoa ships with a [policy system](../policies/) for controlling exactly what the
+generated code is allowed to do, and a [budget enforcer](../stoa/budget/) for
+capping the one-time planning cost at the workflow level. Both are a single YAML file.
+
+The [ROADMAP](../ROADMAP.md) covers what's coming, including a persistent plan
+store so generated code survives service restarts — meaning the planning call
+happens once per deployment, not once per process.
